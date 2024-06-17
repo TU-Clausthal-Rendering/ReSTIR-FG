@@ -9,7 +9,7 @@ This prototype implements ReSTIR FG, an efficient real-time global illumination 
 
 This project was implemented using NVIDIA's Falcor rendering framework. See [README_Falcor.md](README_Falcor.md) for the readme provided with Falcor.
 
-You can download the executable demo from the [Releases Page](https://github.com/TU-Clausthal-Rendering/ReSTIRFG/releases/tag/1.0), or build the project by following the instructions in [Building Falcor](#building-falcor) or the build instructions in the original [readme](README_Falcor.md).
+You can download the executable demo from the [Releases Page](https://github.com/TU-Clausthal-Rendering/ReSTIR-FG/releases/tag/1.0), or build the project by following the instructions in [Building Falcor](#building-falcor) or the build instructions in the original [readme](README_Falcor.md).
 
 Teaser:
 
