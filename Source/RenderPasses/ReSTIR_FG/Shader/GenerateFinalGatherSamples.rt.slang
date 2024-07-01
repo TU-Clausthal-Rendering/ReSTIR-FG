@@ -31,7 +31,6 @@ cbuffer Constant{
     uint gHashSize;     //Size is always 2^x
     bool gUseAlphaTest; //Alpha test
     bool gDeltaRejection;   //Accept every non delta surface as diffuse
-    //bool gCreateFallbackSample; //Creates a reference sample if current sample was invalid
     uint _pad2;
 }  
 

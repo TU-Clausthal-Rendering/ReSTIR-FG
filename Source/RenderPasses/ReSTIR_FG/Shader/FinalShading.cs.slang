@@ -150,6 +150,8 @@ void main(uint2 pixel : SV_DispatchThreadID)
     
     float3 viewDir;
     HitInfo hitInfo;
+
+    //Evaluate RTXDI sample
 #if USE_RTXDI
     viewDir = -gViewDI[pixel].xyz;
     
@@ -192,6 +194,8 @@ void main(uint2 pixel : SV_DispatchThreadID)
         }
     }
 #endif //RTXDI
+
+    //Evaluate ReSTIR FG sample
 
     //Load final gather and ReSTIR FG data
     float4 viewTmp = gView[pixel];
@@ -266,13 +270,12 @@ void main(uint2 pixel : SV_DispatchThreadID)
         if(needEmissive)
             emission += bsdfProperties.emission * thp;
 
+        // Add caustics
         #if !USE_RESTIR_GI
-
             #if (USE_CAUSTIC_FILTER_RESERVOIR && !RESERVOIR_PHOTON_DIRECT) || !USE_CAUSTIC_FILTER_RESERVOIR
                 caustic += gCausticRadiance[pixel].xyz * thp;
             #endif
             #if USE_CAUSTIC_FILTER_RESERVOIR
-                //sd.mtl.setActiveLobes((uint)LobeType::All);
                 Reservoir causticReservoir = Reservoir(gCausticReservoir[pixel]);
                 float3 causticReservoirRadianceDiffuse = float3(0);
                 float3 causticResRadianceSpec = float3(0);

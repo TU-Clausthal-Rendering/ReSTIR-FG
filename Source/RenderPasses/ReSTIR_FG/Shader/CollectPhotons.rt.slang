@@ -205,11 +205,9 @@ void anyHitReservoir(inout RayDataReservoir rayDataRes : SV_RayPayload, SphereAt
         IgnoreHit();
     }
 
-    //float target = (luminance(pd.flux) * M_1_PI) / surface.diffuseProb;
-
+    //RIS resampling
     float target = surface.getPdf(pd.dir, luminance(pd.flux))/ NdotL;
     if(rayDataRes.r.updateReservoir(gPhotonWeight[InstanceIndex()], target, sampleNext1D(rayDataRes.sg)))
-    //if(rayDataRes.r.updateReservoir(1.0, target, sampleNext1D(rayDataRes.sg)))
         rayDataRes.idx = primIndex;
     IgnoreHit();
 }
@@ -340,32 +338,32 @@ void intersection()
 float3 stochPhotonContribution(in const ShadingData sd, in IMaterialInstance bsdf, float3 N , inout RayData rayData, bool isCaustic)
 {
     #if USE_STOCHASTIC_COLLECT
-    //Get the size of the list to loop through. 
-    uint maxIdx = min(rayData.counter, STOCH_NUM_PHOTONS);
-    float3 radiance = float3(0);
+        //Get the size of the list to loop through. 
+        uint maxIdx = min(rayData.counter, STOCH_NUM_PHOTONS);
+        float3 radiance = float3(0);
 
-    //Return when there is no element
-    if (maxIdx == 0)
-        return radiance;
+        //Return when there is no element
+        if (maxIdx == 0)
+            return radiance;
 
-    //loop through the list and accumulate photons
-    for (uint i = 0; i < maxIdx; i++)
-    {
-        //Get Photon info
-        uint instanceIndex = isCaustic ? 1 : 0;
-        PhotonData pd = PhotonData(gPackedPhotonData[instanceIndex][rayData.photonIdx[i]]);
+        //loop through the list and accumulate photons
+        for (uint i = 0; i < maxIdx; i++)
+        {
+            //Get Photon info
+            uint instanceIndex = isCaustic ? 1 : 0;
+            PhotonData pd = PhotonData(gPackedPhotonData[instanceIndex][rayData.photonIdx[i]]);
 
-        float3 f_r = bsdf.eval(sd, pd.dir, rayData.sg);
-        float NdotL = dot(N, pd.dir);
-        if(NdotL > kMinCosTheta)
-            radiance += max(0.f, (f_r * pd.flux) / NdotL);
-    }
+            float3 f_r = bsdf.eval(sd, pd.dir, rayData.sg);
+            float NdotL = dot(N, pd.dir);
+            if(NdotL > kMinCosTheta)
+                radiance += max(0.f, (f_r * pd.flux) / NdotL);
+        }
 
-    //Weight output radiance with number of photons for this pixel.
-    //The weight equals 1 if there is less or equal than the maximum list size in the photon array. (Reservoir sampling)
-    return radiance * (float(rayData.counter) / float(maxIdx));
+        //Weight output radiance with number of photons for this pixel.
+        //The weight equals 1 if there is less or equal than the maximum list size in the photon array. (Reservoir sampling)
+        return radiance * (float(rayData.counter) / float(maxIdx));
     #else
-    return float3(0);
+        return float3(0);
     #endif
 }
 
@@ -398,7 +396,7 @@ void causticPhotonCollection(in ShadingData sd, inout RayData rayData, bool coll
         rayDataRes.idx = -1;
         ray.Direction = -sd.V;
     #endif
-
+    //Second Reservoir Payload for directly resampled photons
     #if (CAUSTIC_COLLECTION_MODE == CAUSTIC_COLLECT_MODE_RESERVOIR) && RESERVOIR_PHOTON_DIRECT
         RayDataReservoir rayDataResDirect;
         rayDataResDirect.r = Reservoir();
@@ -416,19 +414,19 @@ void causticPhotonCollection(in ShadingData sd, inout RayData rayData, bool coll
         #endif // USE_STOCHASTIC_COLLECT
 
 
-        //Collect Caustic Photons
+        //Collect Caustic Photons as Reservoirs
     #if (CAUSTIC_COLLECTION_MODE == CAUSTIC_COLLECT_MODE_RESERVOIR)
         TraceRay(gPhotonAS, kRayFlags, 2 /* instanceInclusionMask */, 1 /* hitIdx */, 0 /* rayType count */, 0 /* missIdx */, ray, rayDataRes);
+        //If a sample is in the reservoir, finalize it
         if(rayDataRes.r.M > 0 && rayDataRes.idx >= 0){
             rayDataRes.r.finalizeSample(1, 1.f);
-            //rayDataRes.r.weightSum = rayDataRes.r.M / (M_PI * gPhotonRadius.y * gPhotonRadius.y);
         }
-        rayDataRes.r.M = 1;
+        rayDataRes.r.M = 1; //Set confidence weight
         rayData.sg = rayDataRes.sg;
         #if USE_STOCHASTIC_COLLECT
             ray.Direction = sd.faceN;
         #endif 
-    #else // (CAUSTIC_COLLECTION_MODE == CAUSTIC_COLLECT_MODE_RESERVOIR) Usual collection
+    #else // (CAUSTIC_COLLECTION_MODE == CAUSTIC_COLLECT_MODE_RESERVOIR) | Usual collection
         TraceRay(gPhotonAS, kRayFlags, 2 /* instanceInclusionMask */, 0 /* hitIdx */, 0 /* rayType count */, 0 /* missIdx */, ray, rayData);
         float w = gPhotonWeight.y;
         #if USE_STOCHASTIC_COLLECT
@@ -470,12 +468,11 @@ void causticPhotonCollection(in ShadingData sd, inout RayData rayData, bool coll
                 rayData.countPhotons = 0; //delete flag
                 directRadiance += w * rayData.radiance;
             #endif // USE_STOCHASTIC_COLLECT
-            //if((kEmissionToCausticFilter || MODE_FINAL_GATHER) && collectEmissive) directRadiance += miProperties.emission;
         #endif
         }
     } //end if(validSurface)
 
-    //Temporal Caustic Filter
+    //Temporal Caustic Filter (non Reservoir based)
     #if (CAUSTIC_COLLECTION_MODE == CAUSTIC_COLLECT_MODE_TEMPORAL)
         //Get Motion Vector and get reprojected pixel
         float2 motionOffset = gMVec[launchIndex] * float2(launchDim);
@@ -539,6 +536,7 @@ void causticPhotonCollection(in ShadingData sd, inout RayData rayData, bool coll
     #endif
 }
 
+//Collect photons for the final gather sample
 void fgSampleCollection(float3 genPosW, inout RayData rayData, bool valid){
     const uint2 launchIndex = DispatchRaysIndex().xy;
     const uint2 launchDim = DispatchRaysDimensions().xy;

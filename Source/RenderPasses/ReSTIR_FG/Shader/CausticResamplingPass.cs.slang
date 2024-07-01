@@ -51,16 +51,6 @@ cbuffer Constant
     float2 gPhotonRadius;            //Caustic Photon Radius
 }
 
-struct LightSample{
-    float3 dir;
-    float Li;
-};
-
-struct PhotonLight{
-    float4 pos;
-    float4 flux;
-};
-
 static const float kRayEpsilon = 0.99f;
 static const float kRayNearEpsilon = 0.01f;
 static const bool kCollectDirectPhotons = RESERVOIR_PHOTON_DIRECT;
@@ -344,7 +334,7 @@ void spatiotemporalResampling(uint2 pixel, inout SampleGenerator sg, inout Reser
         
             //Get light pdf
             float ps = 0.0f;
-            //Skip Sample if it was rejected by jacobian
+            //Check if sample could be generated at the bias surface
             if (biasSurface.valid)
             {
                 float NdotL = dot(causticSample.dir, biasSurface.normal);
@@ -378,7 +368,6 @@ void main(uint2 dTid : SV_DispatchThreadID)
     SurfaceFG surface = SurfaceFG(gSurface[index2Dto1D(dTid, gFrameDim.x)],viewDir.xyz);
 
     bool collectDirect = (viewDir.w > 0.1) && kCollectDirectPhotons; // Check for direct photon collection
-    //SurfaceFG surface = getSurface(dTid, false);
     if (!surface.valid)
         return;
 
@@ -386,12 +375,13 @@ void main(uint2 dTid : SV_DispatchThreadID)
         SampleGenerator sg = gSampleGenState[index2Dto1D(dTid, gFrameDim.x)];
     #else
         SampleGenerator sg = SampleGenerator(dTid, gFrameCount + 8 * 32);
-    #endif    
+    #endif
+
     //Load reservoir from current iteration
     Reservoir r = {};
     CausticSample causticData = CausticSample();
 
-    //Load current reservoir in 
+    //Load current reservoir
     Reservoir current = Reservoir(gReservoir[0][dTid]);
     if (current.M > 0)
     {
@@ -400,7 +390,7 @@ void main(uint2 dTid : SV_DispatchThreadID)
     
     r.combineReservoir(current, current.targetFunc, 0.5 /* random */);
 
-
+    //Resampling
 #if MODE_SPATIOTEMPORAL
     spatiotemporalResampling(dTid, sg, r, causticData, surface);
 #elif MODE_TEMPORAL
@@ -416,13 +406,13 @@ void main(uint2 dTid : SV_DispatchThreadID)
 #endif
     gCausticSample[0][index2Dto1D(dTid, gFrameDim.x)] = causticData;
 
-    //Final Gather sample
+    //Second Resample pass for directly collected photons on some metal surfaces
     if(collectDirect)
     {
         r = {};
         causticData = CausticSample();
 
-        //Load current reservoir in 
+        //Load current reservoir 
         current = Reservoir(gReservoir[1][dTid]);
         if (current.M > 0)
         {
@@ -430,6 +420,7 @@ void main(uint2 dTid : SV_DispatchThreadID)
         }
         r.combineReservoir(current, current.targetFunc, 0.5 /* random */);
 
+        //Resampling
         #if MODE_SPATIOTEMPORAL
             spatiotemporalResampling(dTid, sg, r, causticData, surface, 1);
         #elif MODE_TEMPORAL

@@ -351,7 +351,6 @@ void rayGen()
             return;
     
         ray.Direction = fromLocalToWorld(pls.normal, woLocal);
-        //pls.flux /= lightDirPDF;
         pls.flux *= M_PI;   //Lambert Emitter
     }
 #endif    
@@ -395,23 +394,24 @@ void rayGen()
         photon.dir = ray.Direction;
         reflectedDiffuse = rayData.diffuseHit;
 
-        //rejection
+        //Gen Roulette value for rejecting
         float rndRoulette = sampleNext1D(rayData.sg);
         bool roulette = rndRoulette <= gRejection;
         bool minDistanceRoulette = true;
 
+        //Check if photon should be rejected if it is too close to the light source
         if(rayData.distance < gGenerationLampIntersectGuard){
             minDistanceRoulette = sampleNext1D(rayData.sg) < gGenerationLampIntersectGuardStoreProbability;
             photon.flux *= 1.f/gGenerationLampIntersectGuardStoreProbability;
         }
                        
-        //store photon light
+        //Store photons
         if (reflectedDiffuse && (roulette || storeAsCaustic) && minDistanceRoulette)
         {
             uint photonType = storeAsCaustic ? 1 : 0; //Global = 0 or caustic = 1
             bool storePhoton = true;
             if (kUsePhotonCulling && (kUseCausticCulling || photonType == 0))
-                storePhoton = cullingTest(photonPos);
+                storePhoton = cullingTest(photonPos); //Photon Culling
             if(storePhoton){
                 uint photonIndex = 0;
                 if(photonType == 0)

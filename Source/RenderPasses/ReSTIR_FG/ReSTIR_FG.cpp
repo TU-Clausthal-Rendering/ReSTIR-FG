@@ -289,6 +289,11 @@ void ReSTIR_FG::renderUI(Gui::Widgets& widget)
     {
         mClearReservoir = true;
         changed = true;
+        //Switch Caustic Collection mode to fit the algorithm
+        if (mRenderMode == RenderMode::FinalGather)
+            mCausticCollectMode = CausticCollectionMode::All;
+        if (mRenderMode == RenderMode::ReSTIRFG)
+            mCausticCollectMode = CausticCollectionMode::Reservoir;        
     }
 
     if (auto group = widget.group("Specular Trace Options"))
@@ -602,9 +607,6 @@ void ReSTIR_FG::renderUI(Gui::Widgets& widget)
         changed |= group.checkbox("Use Stored Sample Gen State", mStoreSampleGenState);
         group.tooltip("Stores the Sample generator state and uses them for the next pass instead of generating a new one");
     }
-
-    if (mpScene)
-        widget.text(std::to_string(length(mpScene->getSceneBounds().extent())));
 
     mOptionsChanged |= changed;
 }

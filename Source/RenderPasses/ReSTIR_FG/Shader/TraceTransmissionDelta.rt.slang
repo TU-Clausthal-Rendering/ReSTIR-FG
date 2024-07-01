@@ -204,11 +204,12 @@ void rayGen()
             invalidSample = true;
         }
 
+        //Determine if surface is diffuse
         bool isTransmission = validBSDF ? bsdfSample.isLobe(LobeType::Transmission) : false;
         float3 diffuseProb = bsdfProperties.diffuseReflectionAlbedo / (bsdfProperties.diffuseReflectionAlbedo + bsdfProperties.specularReflectionAlbedo + bsdfProperties.diffuseTransmissionAlbedo + bsdfProperties.specularTransmissionAlbedo);
         float meanDiffuseProb = (diffuseProb.x + diffuseProb.y + diffuseProb.z) / 3;
         bool hasDiffuseParts = gRequDiffParts ? (meanDiffuseProb > kDiffuseCutoff) || bsdfProperties.roughness > kRoughnessCutoff : true;
-        isDiffuse = hasDiffuseParts;// && bsdfSample.isLobe(LobeType::NonDeltaReflection);
+        isDiffuse = hasDiffuseParts;
         
         if(isDiffuse || invalidSample)
             break;
