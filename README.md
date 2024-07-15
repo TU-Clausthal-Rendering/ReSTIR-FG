@@ -3,13 +3,17 @@
 ![](docs/images/teaserReSTIRFG.png)
 
 ## Introduction
-This repository contains the source code and an interactive demo for the soon-to-be-published EGSR paper.
+This repository contains the source code and an interactive demo for [the following EGSR paper:](https://diglib.eg.org/items/df98f89d-a0ca-4800-9bc4-74528feaf872)
+
+> **[ReSTIR FG: Real-Time Reservoir Resampled Photon Final Gathering](https://diglib.eg.org/items/df98f89d-a0ca-4800-9bc4-74528feaf872)** <br>
+> René Kern, Felix Brüll, Thorsten Grosch <br>
+> TU Clausthal
 
 This prototype implements ReSTIR FG, an efficient real-time global illumination algorithm that combines photon final gaterhing with reservoir resampling (ReSTIR). Additionally, our ReSTIR FG is able to display caustics in real-time. For direct light, [RTXDI](https://github.com/NVIDIAGameWorks/RTXDI) is used. This prototype also contains a denoised prototype using [DLSS](https://github.com/NVIDIA/DLSS) and [NRD](https://github.com/NVIDIAGameWorks/RayTracingDenoiser)
 
 This project was implemented using NVIDIA's Falcor rendering framework. See [README_Falcor.md](README_Falcor.md) for the readme provided with Falcor.
 
-You can download the executable demo from the [Releases Page](https://github.com/TU-Clausthal-Rendering/ReSTIR-FG/releases), or build the project by following the instructions in [Building Falcor](#building-falcor) or the build instructions in the original [readme](README_Falcor.md).
+You can download the executable demo from the [Releases Page](https://github.com/TU-Clausthal-Rendering/ReSTIR-FG/releases/latest), or build the project by following the instructions in [Building Falcor](#building-falcor) or the build instructions in the original [readme](README_Falcor.md).
 
 Teaser:
 
