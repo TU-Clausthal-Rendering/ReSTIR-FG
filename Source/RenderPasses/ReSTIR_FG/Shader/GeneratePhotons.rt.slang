@@ -52,8 +52,6 @@ enum class GenerationFlags // : uint32_t
     AlphaTest           = 0x01,     //Enable Alpha test
     AdjShadingNormals   = 0x02,     //Adjust the shading normals
     EnableCaustics      = 0x04,     //Enable caustic photons.
-    DeltaRejection      = 0x08,     //Accept every non delta material as diffuse
-    DeltaRejReqDiff     = 0x10,     //Reqire diffuse part for delta rejection
     AnalyticLight       = 0x20,     //Use analytic light photons
 };
 
@@ -64,8 +62,10 @@ static const bool kUseCausticCulling = USE_CAUSTIC_CULLING;
 static const uint kRayFlagTerminatedMiss = 1;
 static const uint kRayFlagTerminatedHit = 2;
 
-static const float kTraceRoughnessCutoff = TRACE_TRANS_SPEC_ROUGH_CUTOFF;
-static const float kTraceDiffuseCutoff = TRACE_TRANS_SPEC_DIFFUSEPART_CUTOFF;
+static const float kTraceRoughnessMin = MAT_ROUGHNESS_CUTOFF_MIN;
+static const float kTraceRoughnessMax = MAT_ROUGHNESS_CUTOFF_MAX;
+static const bool kRequireDiffuseParts = MAT_REQUIRE_DIFFUSE_PART;
+static const float kTraceDiffuseCutoff = MAT_DIFFUSEPART_CUTOFF;
 
 
 /** Payload for scatter ray (80B).
@@ -269,14 +269,7 @@ void closestHit(inout RayData rayData : SV_RayPayload, BuiltInTriangleIntersecti
     BSDFSample bsdfSample;
     let bsdf = gScene.materials.getMaterialInstance(sd, lod, hints);
     let bsdfProperties = bsdf.getProperties(sd);
-    bool hasDiffuseParts = true;
-    if((gFlags & (uint) GenerationFlags::DeltaRejReqDiff))
-    {
-        float3 diffuseProb = bsdfProperties.diffuseReflectionAlbedo / (bsdfProperties.diffuseReflectionAlbedo + bsdfProperties.specularReflectionAlbedo + bsdfProperties.diffuseTransmissionAlbedo + bsdfProperties.specularTransmissionAlbedo);
-        float meanDiffuseProb = (diffuseProb.x + diffuseProb.y + diffuseProb.z) / 3;
-        hasDiffuseParts = (meanDiffuseProb > kTraceDiffuseCutoff) || bsdfProperties.roughness > kTraceRoughnessCutoff;
-    }
-
+    
     bool valid = bsdf.sample(sd, rayData.sg, bsdfSample, true /*ImportanceSampling*/);
 
     float3 thpStart = rayData.thp;
@@ -289,11 +282,12 @@ void closestHit(inout RayData rayData : SV_RayPayload, BuiltInTriangleIntersecti
     rayData.direction = bsdfSample.wo;
     rayData.isEmissive = any(bsdfProperties.emission > 0);
     rayData.distance += RayTCurrent();
-    if (gFlags & (uint) GenerationFlags::DeltaRejection)
-        rayData.diffuseHit = bsdfSample.isLobe(LobeType::NonDeltaReflection) && hasDiffuseParts;
-    else
-        rayData.diffuseHit = bsdfSample.isLobe(LobeType::Diffuse) && !transmission;
 
+    //Check if the hit Material is diffuse
+    float3 diffuseProb = bsdfProperties.diffuseReflectionAlbedo / (bsdfProperties.diffuseReflectionAlbedo + bsdfProperties.specularReflectionAlbedo + bsdfProperties.diffuseTransmissionAlbedo + bsdfProperties.specularTransmissionAlbedo);
+    float meanDiffuseProb = (diffuseProb.x + diffuseProb.y + diffuseProb.z) / 3;
+    bool hasDiffuseParts = kRequireDiffuseParts ? (meanDiffuseProb > kTraceDiffuseCutoff) || bsdfProperties.roughness > kTraceRoughnessMax : true; //Check if surface is diffuse or above the roughness threshold
+    rayData.diffuseHit = hasDiffuseParts && bsdfProperties.roughness > kTraceRoughnessMin && !transmission; //Material is only diffuse if it is over the roughness min
     
     //if throughput is 0, return
     if (!valid || all(rayData.thp <= 0))

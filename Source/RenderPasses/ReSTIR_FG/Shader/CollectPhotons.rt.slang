@@ -98,8 +98,6 @@ static const bool kCollectCaustics = CAUSTIC_COLLECTION_MODE != CAUSTIC_COLLECT_
 static const bool kCollectCausticsForIndirect = CAUSTIC_COLLECTION_INDIRECT;
 
 static const bool kRejectDiffuseSurfaces = REJECT_FGSAMPLE_DIFFUSE_SURFACE;    //Uses same definition as photon generation
-static const float kTraceRoughnessCutoff = TRACE_TRANS_SPEC_ROUGH_CUTOFF;
-static const float kTraceDiffuseCutoff = TRACE_TRANS_SPEC_DIFFUSEPART_CUTOFF;
 static const bool kEmissionToCausticFilter = EMISSION_TO_CAUSTIC_FILTER;
 
 static const uint kRayFlags = RAY_FLAG_SKIP_CLOSEST_HIT_SHADER | RAY_FLAG_SKIP_TRIANGLES;

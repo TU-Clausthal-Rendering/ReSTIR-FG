@@ -300,15 +300,16 @@ void ReSTIR_FG::renderUI(Gui::Widgets& widget)
     {
         group.var("Specular/Transmissive Bounces", mTraceMaxBounces, 0u, 32u, 1u);
         group.tooltip("Number of specular/transmissive bounces. 0 -> direct hit only");
+        group.var("Roughness Cutoff Min/Max", mTraceRoughnessCutoff, 0.0f, 1.0f, 0.01f);
+        group.tooltip("If below min material is considered specular, if above max it is considered diffuse");
         if (mTraceRequireDiffuseMat)
         {
-            group.var("Roughness Cutoff", mTraceRoughnessCutoff, 0.0f, 1.0f, 0.01f);
-            group.tooltip("Materials with roughness over this threshold are still considered diffuse");
-            group.var("Diffuse Cutoff", mTraceDiffuseCutoff, 0.f, 1.f,0.01f);
-            group.tooltip("Material only counts as diffuse if the mean diffuse part is over this value");
+            group.var("Diffuse Cutoff", mTraceDiffuseCutoff, 0.f, 1.f,0.00f);
+            group.tooltip("Material only counts as diffuse if the mean diffuse part is over this value. \n Is applied after the roughness cutoff"
+                "(only for values between).\n Useful for rough metals");
         }
         group.checkbox("Show Debug Path Mask", mDebugSpecularTraceMask);
-        group.tooltip("Shows a mask which path is used for which pixel.) \n Blue: First hit is diffuse \n Red: DI and FG evaluated on the same surface \n Green: DI and FG evaluated on different surfaces.");
+        group.tooltip("Shows a mask which path is used for which pixel. \n Blue: First hit is diffuse \n Red: DI and FG evaluated on the same surface \n Green: DI and FG evaluated on different surfaces.");
     }
 
     //Photon Mapping Options
@@ -1106,7 +1107,8 @@ void ReSTIR_FG::traceTransmissiveDelta(RenderContext* pRenderContext, const Rend
 
     mTraceTransmissionDelta.pProgram->addDefine("USE_ALPHA_TEST", mPhotonUseAlphaTest ? "1" : "0");
     mTraceTransmissionDelta.pProgram->addDefines(getValidResourceDefines(kOutputChannels, renderData));
-    mTraceTransmissionDelta.pProgram->addDefine("TRACE_TRANS_SPEC_ROUGH_CUTOFF", std::to_string(mTraceRoughnessCutoff));
+    mTraceTransmissionDelta.pProgram->addDefine("TRACE_TRANS_SPEC_ROUGH_CUTOFF_MIN", std::to_string(mTraceRoughnessCutoff.x));
+    mTraceTransmissionDelta.pProgram->addDefine("TRACE_TRANS_SPEC_ROUGH_CUTOFF_MAX", std::to_string(mTraceRoughnessCutoff.y));
     mTraceTransmissionDelta.pProgram->addDefine("TRACE_TRANS_SPEC_DIFFUSEPART_CUTOFF", std::to_string(mTraceDiffuseCutoff));
     mTraceTransmissionDelta.pProgram->addDefine(
         "CAUSTIC_TEMPORAL_FILTER_ENABLED", mCausticCollectMode == CausticCollectionMode::Temporal ? "1" : "0"
@@ -1291,8 +1293,10 @@ void ReSTIR_FG::generatePhotonsPass(RenderContext* pRenderContext, const RenderD
     mGeneratePhotonPass.pProgram->addDefine("PHOTON_BUFFER_SIZE_CAUSTIC", std::to_string(mNumMaxPhotons[1]));
     mGeneratePhotonPass.pProgram->addDefine("USE_PHOTON_CULLING", mUsePhotonCulling ? "1" : "0");
     mGeneratePhotonPass.pProgram->addDefine("USE_CAUSTIC_CULLING", mUseCausticCulling ? "1" : "0");
-    mGeneratePhotonPass.pProgram->addDefine("TRACE_TRANS_SPEC_ROUGH_CUTOFF", std::to_string(mTraceRoughnessCutoff));
-    mGeneratePhotonPass.pProgram->addDefine("TRACE_TRANS_SPEC_DIFFUSEPART_CUTOFF", std::to_string(mTraceDiffuseCutoff));
+    mGeneratePhotonPass.pProgram->addDefine("MAT_ROUGHNESS_CUTOFF_MIN", std::to_string(mTraceRoughnessCutoff.x));
+    mGeneratePhotonPass.pProgram->addDefine("MAT_ROUGHNESS_CUTOFF_MAX", std::to_string(mTraceRoughnessCutoff.y));
+    mGeneratePhotonPass.pProgram->addDefine("MAT_REQUIRE_DIFFUSE_PART", mTraceRequireDiffuseMat ? "1" : "0");
+    mGeneratePhotonPass.pProgram->addDefine("MAT_DIFFUSEPART_CUTOFF", std::to_string(mTraceDiffuseCutoff));
     mGeneratePhotonPass.pProgram->addDefine("USE_REDUCED_PD_FORMAT", mUseReducePhotonData ? "1" : "0");
     mGeneratePhotonPass.pProgram->addDefines(getMaterialDefines());
     
@@ -1324,8 +1328,6 @@ void ReSTIR_FG::generatePhotonsPass(RenderContext* pRenderContext, const RenderD
     if (mPhotonUseAlphaTest) flags |= 0x01;
     if (mPhotonAdjustShadingNormal) flags |= 0x02;
     if (mCausticCollectMode != CausticCollectionMode::None) flags |= 0x04;
-    if (mGenerationDeltaRejection) flags |= 0x08;
-    if (mGenerationDeltaRejectionRequireDiffPart && mTraceRequireDiffuseMat) flags |= 0x10;
     if (!mpScene->useEmissiveLights() || secondPass) flags |= 0x20; // Analytic lights collect flag
 
     nameBuf = "CB";
@@ -1419,9 +1421,6 @@ void ReSTIR_FG::collectPhotons(RenderContext* pRenderContext, const RenderData& 
      mCollectPhotonPass.pProgram->addDefine("USE_REDUCED_RESERVOIR_FORMAT", mUseReducedReservoirFormat ? "1" : "0");
      mCollectPhotonPass.pProgram->addDefine("CAUSTIC_COLLECTION_MODE", std::to_string((uint)mCausticCollectMode));
      mCollectPhotonPass.pProgram->addDefine("CAUSTIC_COLLECTION_INDIRECT", mUseCausticsForIndirectLight ? "1" : "0");
-          
-     mCollectPhotonPass.pProgram->addDefine("TRACE_TRANS_SPEC_ROUGH_CUTOFF", std::to_string(mTraceRoughnessCutoff));
-     mCollectPhotonPass.pProgram->addDefine("TRACE_TRANS_SPEC_DIFFUSEPART_CUTOFF", std::to_string(mTraceDiffuseCutoff));
      mCollectPhotonPass.pProgram->addDefine("REJECT_FGSAMPLE_DIFFUSE_SURFACE", (mGenerationDeltaRejectionRequireDiffPart && mTraceRequireDiffuseMat) ? "1" : "0");
      mCollectPhotonPass.pProgram->addDefine(
          "EMISSION_TO_CAUSTIC_FILTER", (mCausticCollectMode == CausticCollectionMode::Temporal && mEmissionToCausticFilter) ? "1" : "0"

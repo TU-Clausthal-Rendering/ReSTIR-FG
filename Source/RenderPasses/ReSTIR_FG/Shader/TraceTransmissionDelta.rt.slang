@@ -54,7 +54,8 @@ RWTexture2D<float4> gDebugOut;  //Only used when DEBUG_MASK == 1
 #define is_valid(name) (is_valid_##name != 0)
 
 static const float kDemodulateMinReflectance = 0.01f;
-static const float kRoughnessCutoff = TRACE_TRANS_SPEC_ROUGH_CUTOFF;
+static const float kRoughnessMin = TRACE_TRANS_SPEC_ROUGH_CUTOFF_MIN;
+static const float kRoughnessMax = TRACE_TRANS_SPEC_ROUGH_CUTOFF_MAX;
 static const float kDiffuseCutoff = TRACE_TRANS_SPEC_DIFFUSEPART_CUTOFF;
 static const bool kAlphaTest = USE_ALPHA_TEST;
 
@@ -208,8 +209,8 @@ void rayGen()
         bool isTransmission = validBSDF ? bsdfSample.isLobe(LobeType::Transmission) : false;
         float3 diffuseProb = bsdfProperties.diffuseReflectionAlbedo / (bsdfProperties.diffuseReflectionAlbedo + bsdfProperties.specularReflectionAlbedo + bsdfProperties.diffuseTransmissionAlbedo + bsdfProperties.specularTransmissionAlbedo);
         float meanDiffuseProb = (diffuseProb.x + diffuseProb.y + diffuseProb.z) / 3;
-        bool hasDiffuseParts = gRequDiffParts ? (meanDiffuseProb > kDiffuseCutoff) || bsdfProperties.roughness > kRoughnessCutoff : true;
-        isDiffuse = hasDiffuseParts;
+        bool hasDiffuseParts = gRequDiffParts ? (meanDiffuseProb > kDiffuseCutoff) || bsdfProperties.roughness > kRoughnessMax : true; //Check if surface is diffuse or above the roughness threshold
+        isDiffuse = hasDiffuseParts && bsdfProperties.roughness > kRoughnessMin && !isTransmission; //Material is only diffuse if it is over the roughness min
         
         if(isDiffuse || invalidSample)
             break;
