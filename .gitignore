@@ -12,6 +12,10 @@
 /external/packman/
 /tools/.packman/
 
+#Kitchen and Bistro model
+/Models/Bistro_ReSTIRFG/
+/Models/Kitchen_ReSTIRFG/
+
 # IDE folders.
 /.vs/
 /.vscode/

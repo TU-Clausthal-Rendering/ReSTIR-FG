@@ -48,9 +48,9 @@ import Utils.Math.MathHelpers;
 float3 computeRayOrigin(float3 pos, float3 normal)
 {
 
-    const float origin = 1.f / 32.f;
+    const float origin = 1.f / 16.f; //1.f / 32.f; //1.f / 16.f;
     const float fScale = 3.f / 65536.f;
-    const float iScale = 256.f;
+    const float iScale = 3 * 256.f; //256.f; // 3 * 256.f;
 
     // Per-component integer offset to bit representation of fp32 position.
     int3 iOff = int3(normal * iScale);

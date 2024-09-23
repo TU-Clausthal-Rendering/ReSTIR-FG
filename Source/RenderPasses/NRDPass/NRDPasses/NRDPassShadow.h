@@ -26,55 +26,19 @@
  # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  **************************************************************************/
 #pragma once
-#include "Core/Macros.h"
-#include <cstdint>
+#include "../NRDPassBase.h"
 
-namespace Falcor
+using namespace Falcor;
+
+class NRDPassShadow : public NRDPassBase
 {
-/**
- * Flags to indicate what have changed since last frame.
- * One or more flags can be OR'ed together.
- */
-enum class RenderPassRefreshFlags : uint32_t
-{
-    None = 0x0,
-    LightingChanged = 0x1,      ///< Lighting has changed.
-    RenderOptionsChanged = 0x2, ///< Options that affect the rendering have changed.
+public:
+    FALCOR_PLUGIN_CLASS(NRDPassShadow, "NRD_Shadow", "NRD shadow denoiser (Sigma).");
+
+    static ref<NRDPassShadow> create(ref<Device> pDevice, const Properties& props) { return make_ref<NRDPassShadow>(pDevice, props); }
+
+    NRDPassShadow(ref<Device> pDevice, const Properties& props) : NRDPassBase(pDevice, props) { mDenoisingMethod = DenoisingMethod::Sigma; }
+
+    RenderPassReflection reflect(const CompileData& compileData) override;
 };
 
-/**
- * Flags that indicate if NRD was turned on or off
- */
-enum class NRDEnableFlags : uint32_t
-{
-    None = 0x0,
-    NRDEnabled = 0x1,      ///< NRD was turned on
-    NRDDisabled = 0x2, ///< NRD was turned off
-};
-
-/**
- * The refresh flags above are passed to RenderPass::execute() via a
- * field with this name in the dictionary.
- */
-static const char kRenderPassRefreshFlags[] = "_refreshFlags";
-static const char kRenderPassTime[] = "_time";
-static const char kRenderGraph[] = "_renderGraph";
-static const char kRenderGlobalClock[] = "_renderGlobalClock";
-
-//NRD Flags
-static const char kRenderPassEnableNRD[] = "_enableNRD";
-static const char kRenderPassUseNRDDebugLayer[] = "_useNRDDebugLayer";
-static const char kRenderPassNRDOutputInYCoCg[] = "_useNRDOutputInYCoCg";
-
-/**
- * First available preudorandom number generator dimension.
- */
-static const char kRenderPassPRNGDimension[] = "_prngDimension";
-
-/**
- * Adjust shading normals on primary hits.
- */
-static const char kRenderPassGBufferAdjustShadingNormals[] = "_gbufferAdjustShadingNormals";
-
-FALCOR_ENUM_CLASS_OPERATORS(RenderPassRefreshFlags);
-} // namespace Falcor

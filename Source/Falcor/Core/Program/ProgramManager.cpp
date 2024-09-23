@@ -713,6 +713,7 @@ SlangCompileRequest* ProgramManager::createSlangCompileRequest(const Program& pr
     // Disable noisy warnings enabled in newer slang versions.
     spOverrideDiagnosticSeverity(pSlangRequest, 15602, SLANG_SEVERITY_DISABLED); // #pragma once in modules
     spOverrideDiagnosticSeverity(pSlangRequest, 30081, SLANG_SEVERITY_DISABLED); // implicit conversion
+    spOverrideDiagnosticSeverity(pSlangRequest, 30056, SLANG_SEVERITY_DISABLED); // non-short-circuiting `?:` operator is deprecated, use 'select' instead
 
     // Enable/disable intermediates dump
     bool dumpIR = is_set(program.mDesc.getCompilerFlags(), Program::CompilerFlags::DumpIntermediates);

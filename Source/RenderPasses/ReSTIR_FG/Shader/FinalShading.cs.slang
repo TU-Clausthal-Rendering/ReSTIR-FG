@@ -115,12 +115,12 @@ void main(uint2 pixel : SV_DispatchThreadID)
 {
     bool valid = true;
     //Load Reflectance (was set before)
-    float3 diffuseReflectance = { };
-    float3 specularReflectance = { };
+    float4 diffuseReflectance = { };
+    float4 specularReflectance = { };
     if (is_valid(gOutDiffuseReflectance))
-        diffuseReflectance = gOutDiffuseReflectance[pixel].xyz;
+        diffuseReflectance = gOutDiffuseReflectance[pixel];
     if (is_valid(gOutSpecularReflectance))
-        specularReflectance = gOutSpecularReflectance[pixel].xyz;
+        specularReflectance = gOutSpecularReflectance[pixel];
     
     
     //Outputs
@@ -128,8 +128,8 @@ void main(uint2 pixel : SV_DispatchThreadID)
     float3 emission = { };
     float3 diffuseIllumination = { };
     float3 specularIllumination = { };
-    float hitT = 1.f;
-    uint hitTSamples = 0;
+    float hitT = 0.f;
+    float hitTSpec = 0.f;
 
     // Variables for RTXDI and ReSTIRFG
     float3 diffuse = { };
@@ -189,8 +189,8 @@ void main(uint2 pixel : SV_DispatchThreadID)
             sd.mtl.setActiveLobes((uint) LobeType::SpecularReflection);
             specular += bsdf.eval(sd, dir, sg) * Li * thp;
 
-            hitTSamples++;
             hitT = distance;
+            hitTSpec = distance;
         }
     }
 #endif //RTXDI
@@ -212,7 +212,8 @@ void main(uint2 pixel : SV_DispatchThreadID)
         validSample |= true;
         float4 thpTex = gThp[pixel];
         float3 thp = thpTex.xyz;
-        wasTraced = thpTex.w > 0.5;
+        float tracedHitT = thpTex.w;
+        wasTraced = tracedHitT > 0.0;
 
         //Get Material properties
         uint hints = (uint) MaterialInstanceHints::AdjustShadingNormal;
@@ -256,14 +257,28 @@ void main(uint2 pixel : SV_DispatchThreadID)
         if (validIndirectReservoir)
         {
             sd.mtl.setActiveLobes((uint) LobeType::Diffuse);
-            diffuse += bsdf.eval(sd, dir, sg) * Li * thp;
+            float3 giDiff = bsdf.eval(sd, dir, sg) * Li * thp;
             
             sd.mtl.setActiveLobes((uint) LobeType::SpecularReflection);
             specular += bsdf.eval(sd, dir, sg) * Li * thp;
 
-            hitTSamples++;
-            hitT += distance;
-            hitT *= 1.f / hitTSamples;
+            //HitT handling
+            if(!wasTraced){
+                float directDiffuseLuminance = luminance(diffuse);
+                float directHitT = hitT;
+                float indirectDiffuseLuminance = luminance(giDiff);
+                float hitDistContribution = directDiffuseLuminance / ( directDiffuseLuminance + indirectDiffuseLuminance + 1e-6);
+                float maxContribution = 0.5; // 0.65 works good as well
+                float directHitDistContribution = min(hitDistContribution, maxContribution); // avoid over-sharpening
+
+                hitT = lerp(distance, hitT, directHitDistContribution);
+                hitTSpec = distance;
+            } else {
+                hitT = tracedHitT;
+                hitTSpec = tracedHitT;
+            }
+            
+            diffuse += giDiff;
         }
        
         //Add Emissive to additionally traced materials
@@ -277,8 +292,8 @@ void main(uint2 pixel : SV_DispatchThreadID)
             #endif
             #if USE_CAUSTIC_FILTER_RESERVOIR
                 Reservoir causticReservoir = Reservoir(gCausticReservoir[pixel]);
-                float3 causticReservoirRadianceDiffuse = float3(0);
-                float3 causticResRadianceSpec = float3(0);
+                float3 causticReservoirRadianceDiffuse = float3(0.0);
+                float3 causticResRadianceSpec = float3(0.0);
                 if (causticReservoir.M > 0) {
                     CausticSample causticSample = gCausticSample[index2Dto1D(pixel, gFrameDim.x)];
                     float NdotL = dot(bsdfProperties.guideNormal, causticSample.dir);
@@ -322,13 +337,14 @@ void main(uint2 pixel : SV_DispatchThreadID)
         // NRD
         if(wasTraced){
             float3 combined = (diffuse + specular + emission + caustic);
-            specularIllumination = combined / specularReflectance;
+            diffuseIllumination = (combined * diffuseReflectance.w) / diffuseReflectance.xyz;
+            specularIllumination = (combined * specularReflectance.w) / specularReflectance.xyz;
             emission = float3(0);
         }
         else
         {
-            diffuseIllumination = ((diffuse + caustic)) / diffuseReflectance;
-            specularIllumination = (specular) / specularReflectance;
+            diffuseIllumination = ((diffuse + caustic)) / diffuseReflectance.xyz;
+            specularIllumination = (specular) / specularReflectance.xyz;
         }
     }else
     {
@@ -346,6 +362,6 @@ void main(uint2 pixel : SV_DispatchThreadID)
     if (is_valid(gOutColor)) gOutColor[pixel] = float4(color, 1.f);
     if (is_valid(gOutEmission)) gOutEmission[pixel] = float4(emission, 1.f);
     if (is_valid(gOutDiffuseRadiance)) gOutDiffuseRadiance[pixel] = float4(diffuseIllumination, hitT);
-    if (is_valid(gOutSpecularRadiance))gOutSpecularRadiance[pixel] = float4(specularIllumination, hitT);
+    if (is_valid(gOutSpecularRadiance))gOutSpecularRadiance[pixel] = float4(specularIllumination, hitTSpec);
     if (is_valid(gOutResidualRadiance))  gOutResidualRadiance[pixel] = float4(0.f); //TODO 
 }

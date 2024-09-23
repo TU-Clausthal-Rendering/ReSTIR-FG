@@ -27,7 +27,7 @@ Teaser:
 * [Building Falcor](#building-falcor)
 
 ## Demo usage
-After downloading the demo from the release page, you can execute it using either the `ReSTIRFGDemo_[SceneName].bat` file or the `ReSTIRFGDemoNRD_[SceneName].bat` file. We have provided two scenes in the `Model` folder. For more scenes, see the [Testing with more Scenes](#testing-with-more-scenes) section.
+After downloading the demo from the release page, you can execute it using either the `ReSTIRFGDemo_[SceneName].bat` file or the `ReSTIRFGDemoNRD_[SceneName].bat` file. We provide four scenes with the Demo, two are included in the git repo in the `Models` folder (VeachAjar and Sibernik). The other two scenes need to be downloaded separately (Kitchen and Bistro) from the [Releases Page](https://github.com/TU-Clausthal-Rendering/ReSTIR-FG/releases/latest) and unziped into the `Models` folder. For more scenes, see the [Testing with more Scenes](#testing-with-more-scenes) section.
 
 To change the settings of our algorithm, navigate to the `ReSTIR_FG` group in the UI. In addition to `ReSTIR FG`, we have implemented `Final Gather` and `ReSTIR GI`, which can be switched in the UI. For more information about a setting, hover over the `(?)`.
 
@@ -54,13 +54,13 @@ Testing with other scenes is possible. The following points should be noted when
 Falcor supports a variety of scene types:
 - Falcor's `.pyscene` format ([more details](docs/usage/scene-formats.md))
     - e.g. [NVIDIA ORCA](https://developer.nvidia.com/orca)
-- FBX and GLTF files
+- GLTF
+    - Brightness of emissive materials may need to be adjusted.
+- FBX
     - Often need manual adjustments for emissive and glass materials.
 - Many PBRT V4 files:
     - e.g. [Benedikt Bitterli's Rendering Resources](https://benedikt-bitterli.me/resources/) or [PBRTv4 scenes repo](https://github.com/mmp/pbrt-v4-scenes)
     - May require manual adjustments of materials, as not all materials match Falcor's material model.
-
-We may add additional `.pyscenes` for some of these scenes in the future.
 
 ## Falcor Prerequisites
 - Windows 10 version 20H2 (October 2020 Update) or newer, OS build revision .789 or newer

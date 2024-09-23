@@ -27,6 +27,7 @@
  **************************************************************************/
 #include "ModulateIllumination.h"
 #include "RenderGraph/RenderPassHelpers.h"
+#include "RenderGraph/RenderPassStandardFlags.h"
 
 namespace
 {
@@ -46,6 +47,7 @@ namespace
         { "deltaTransmissionReflectance",   "gDeltaTransmissionReflectance",    "Delta Transmission Reflectance",   true /* optional */ },
         { "deltaTransmissionRadiance",      "gDeltaTransmissionRadiance",       "Delta Transmission Radiance",      true /* optional */ },
         { "residualRadiance",               "gResidualRadiance",                "Residual Radiance",                true /* optional */ },
+        { "debugLayer",                     "gDebugLayer",                      "Debug layer, rendered over everything", true /* optional */},
     };
 
     const std::string kOutput = "output";
@@ -63,6 +65,8 @@ namespace
     const char kUseDeltaTransmissionReflectance[] = "useDeltaTransmissionReflectance";
     const char kUseDeltaTransmissionRadiance[] = "useDeltaTransmissionRadiance";
     const char kUseResidualRadiance[] = "useResidualRadiance";
+    const char kUseDebug[] = "useDebug";
+    const char kInputInYCoCg[] = "inputInYCoCg";
     const char kOutputSize[] = "outputSize";
 }
 
@@ -92,6 +96,8 @@ ModulateIllumination::ModulateIllumination(ref<Device> pDevice, const Properties
         else if (key == kUseDeltaTransmissionRadiance) mUseDeltaTransmissionRadiance = value;
         else if (key == kUseResidualRadiance) mUseResidualRadiance = value;
         else if (key == kOutputSize) mOutputSizeSelection = value;
+        else if (key == kUseDebug) mUseDebug = value;
+        else if (key == kInputInYCoCg) mInputInYCoCg = value;
         else
         {
             logWarning("Unknown property '{}' in ModulateIllumination properties.", key);
@@ -115,6 +121,8 @@ Falcor::Properties ModulateIllumination::getProperties() const
     props[kUseDeltaTransmissionRadiance] = mUseDeltaTransmissionRadiance;
     props[kUseResidualRadiance] = mUseResidualRadiance;
     props[kOutputSize] = mOutputSizeSelection;
+    props[kUseDebug] = mUseDebug;
+    props[kInputInYCoCg] = mInputInYCoCg;
     return props;
 }
 
@@ -139,6 +147,21 @@ void ModulateIllumination::execute(RenderContext* pRenderContext, const RenderDa
     const auto& pOutput = renderData.getTexture(kOutput);
     mFrameDim = { pOutput->getWidth(), pOutput->getHeight() };
 
+    //Change options via render pass dictonary
+    auto& dict = renderData.getDictionary();
+    //Debug layer
+    auto nrdDebugFlag = dict.getValue(kRenderPassUseNRDDebugLayer, NRDEnableFlags::None);
+    if (mUseDebug && (nrdDebugFlag == NRDEnableFlags::NRDDisabled))
+        mUseDebug = false;
+    else if (!mUseDebug && (nrdDebugFlag == NRDEnableFlags::NRDEnabled))
+        mUseDebug = true;
+    //Color space conversion
+    auto nrdColorSpaceFlag = dict.getValue(kRenderPassNRDOutputInYCoCg, NRDEnableFlags::None);
+    if (mInputInYCoCg && (nrdColorSpaceFlag == NRDEnableFlags::NRDDisabled))
+        mInputInYCoCg = false;
+    else if (!mInputInYCoCg && (nrdColorSpaceFlag == NRDEnableFlags::NRDEnabled))
+        mInputInYCoCg = true;
+
     // For optional I/O resources, set 'is_valid_<name>' defines to inform the program of which ones it can access.
     // TODO: This should be moved to a more general mechanism using Slang.
     DefineList defineList = getValidResourceDefines(kInputChannels, renderData);
@@ -156,6 +179,10 @@ void ModulateIllumination::execute(RenderContext* pRenderContext, const RenderDa
     if (!mUseDeltaTransmissionReflectance) defineList["is_valid_gDeltaTransmissionReflectance"] = "0";
     if (!mUseDeltaTransmissionRadiance) defineList["is_valid_gDeltaTransmissionRadiance"] = "0";
     if (!mUseResidualRadiance) defineList["is_valid_gResidualRadiance"] = "0";
+    if (!mUseDebug) defineList["is_valid_gDebugLayer"] = "0";
+
+    //Set define for color space conversion
+    defineList.add("INPUT_IN_Y_CO_CG", mInputInYCoCg ? "1" : "0");
 
     if (mpModulateIlluminationPass->getProgram()->addDefines(defineList))
     {
@@ -199,4 +226,10 @@ void ModulateIllumination::renderUI(Gui::Widgets& widget)
     widget.checkbox("Delta Transmission Reflectance", mUseDeltaTransmissionReflectance);
     widget.checkbox("Delta Transmission Radiance", mUseDeltaTransmissionRadiance);
     widget.checkbox("Residual Radiance", mUseResidualRadiance);
+    widget.checkbox("Debug Layer", mUseDebug);
+    widget.checkbox("Input in YCoCg", mInputInYCoCg);
+    widget.tooltip(
+        "Converts diffuse and specular Reflectance from YCoCg to linear color space. \n"
+        "Is used in NRD ReBlur. Should be set from render pass by default."
+    );
 }

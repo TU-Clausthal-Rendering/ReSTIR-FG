@@ -8,7 +8,7 @@ sceneBuilder.importScene("sibenik_withGlasStatue.gltf")
 glas = sceneBuilder.getMaterial("glas")
 glas.roughness = 0
 glas.metallic = 0
-glas.indexOfRefraction = 1.55
+glas.indexOfRefraction = 1.30
 glas.transmissionColor = float3(0.5,1.0,0.5)
 glas.specularTransmission = 1
 glas.doubleSided = True

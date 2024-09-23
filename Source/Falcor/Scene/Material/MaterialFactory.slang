@@ -119,9 +119,10 @@ extension MaterialSystem
         \param[in] v Interpolated vertex data.
         \param[in] materialID Material ID at the hit.
         \param[in] lod Method for computing texture level-of-detail, must implement the `ITextureSampler` interface.
+        \param[in] custom alpha threshold. Is used if >= 0 and else the header is used
         \return True if hit should be ignored/discarded.
     */
-    bool alphaTest<L:ITextureSampler>(const VertexData v, const uint materialID, L lod)
+    bool alphaTest<L : ITextureSampler>(const VertexData v, const uint materialID, L lod, float alphaThreshold = -1.0)
     {
         // Load the material header first and early out if alpha test not supported.
         const MaterialHeader header = materialData[materialID].header;
@@ -132,7 +133,7 @@ extension MaterialSystem
         let material = getMaterial(materialID);
 
         float alpha = material.evalOpacity(this, v, lod);
-        float alphaThreshold = header.getAlphaThreshold();
+        float alphaThreshold = alphaThreshold >= 0.0 ? alphaThreshold : header.getAlphaThreshold();
 
         return evalAlphaTest(alpha, alphaThreshold, v.posW);
     }
@@ -142,11 +143,12 @@ extension MaterialSystem
         \param[in] v Interpolated vertex data.
         \param[in] materialID Material ID at the hit.
         \param[in] lod Fixed texture level of detail.
+        \param[in] alpha threshold that is uses if >= 0
         \return True if hit should be ignored/discarded.
     */
-    bool alphaTest(const VertexData v, const uint materialID, const float lod)
+    bool alphaTest(const VertexData v, const uint materialID, const float lod, float alphaThreshold = -1.0)
     {
         ExplicitLodTextureSampler explicitLOD = { lod };
-        return alphaTest(v, materialID, explicitLOD);
+        return alphaTest(v, materialID, explicitLOD, alphaThreshold);
     }
 }

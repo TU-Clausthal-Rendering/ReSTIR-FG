@@ -46,8 +46,23 @@ Texture2D gDeltaTransmissionEmission;
 Texture2D gDeltaTransmissionReflectance;
 Texture2D gDeltaTransmissionRadiance;
 Texture2D gResidualRadiance;
+Texture2D gDebugLayer;
 
 RWTexture2D gOutput;
+
+static const bool kInputInYCoCg = INPUT_IN_Y_CO_CG;
+
+//Needed for ReBlur passes. Identical to NRDs implementation
+float3 YCoCgToLinear(float3 color){
+    float t = color.x - color.z;
+
+    float3 r;
+    r.y = color.x + color.z;
+    r.x = t + color.y;
+    r.z = t - color.y;
+
+    return max( r, 0.0 );
+}
 
 [numthreads(16, 16, 1)]
 void main(uint3 dispatchThreadId : SV_DispatchThreadID)
@@ -65,6 +80,8 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
     if (is_valid(gDiffuseRadiance))
     {
         float3 diffuseColor = gDiffuseRadiance[pixel].rgb;
+        if(kInputInYCoCg)
+            diffuseColor = YCoCgToLinear(diffuseColor);
 
         if (is_valid(gDiffuseReflectance))
         {
@@ -76,7 +93,8 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
     if (is_valid(gSpecularRadiance))
     {
         float3 specularColor = gSpecularRadiance[pixel].rgb;
-
+        if(kInputInYCoCg)
+            specularColor = YCoCgToLinear(specularColor);
         if (is_valid(gSpecularReflectance))
         {
             specularColor *= gSpecularReflectance[pixel].rgb;
@@ -122,6 +140,13 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
     if (is_valid(gResidualRadiance))
     {
         outputColor.rgb += gResidualRadiance[pixel].rgb;
+    }
+
+    //Debug is a bit special
+    if(is_valid(gDebugLayer))
+    {
+        float4 debugLayer = gDebugLayer[pixel];
+        outputColor.rgb = debugLayer.rgb * debugLayer.a + outputColor.rgb * (1.0 - debugLayer.a);
     }
 
     gOutput[pixel] = outputColor;

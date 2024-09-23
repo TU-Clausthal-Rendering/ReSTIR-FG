@@ -26,7 +26,7 @@
  # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  **************************************************************************/
 #define NRD_COMPILER_DXC
-#include "nrd/Shaders/Include/NRD.hlsli"
+#include "nrd/Shaders/Source/NRD.hlsli"
 
 import Utils.Color.ColorHelpers;
 
@@ -34,9 +34,21 @@ import Utils.Color.ColorHelpers;
 // NRD_METHOD must be defined in order to use this module.
 #error "NRD_METHOD not defined!"
 #endif
+#ifndef NRD_DIFFUSE_VALID
+// NRD_DIFFUSE_VALID must be defined in order to use this module.
+#error "NRD_DIFFUSE_VALID not defined!"
+#endif
+#ifndef NRD_SPECULAR_VALID
+// NRD_SPECULAR_VALID must be defined in order to use this module.
+#error "NRD_SPECULAR_VALID not defined!"
+#endif
 
-#define NRD_METHOD_RELAX_DIFFUSE_SPECULAR 0
-#define NRD_METHOD_REBLUR_DIFFUSE_SPECULAR 1
+#define NRD_METHOD_RELAX 0
+#define NRD_METHOD_REBLUR 1
+#define NRD_METHOD_OCCLUSION 2
+
+static const bool kDiffuseValid = NRD_DIFFUSE_VALID;
+static const bool kSpecularValid = NRD_SPECULAR_VALID;
 
 cbuffer PerImageCB
 {
@@ -48,6 +60,8 @@ cbuffer PerImageCB
 
     RWTexture2D<float4> gDiffuseRadianceHitDist;
     RWTexture2D<float4> gSpecularRadianceHitDist;
+    RWTexture2D<float> gDiffuseHitDist;
+    RWTexture2D<float> gSpecularHitDist;
 };
 
 void clampRadiance(inout float3 diffuseRadiance, inout float3 specularRadiance)
@@ -72,29 +86,64 @@ void main(uint3 dispatchThreadId : SV_DispatchThreadID)
 {
     int2 ipos = dispatchThreadId.xy;
 
-    float4 diffuseRadianceHitDist = gDiffuseRadianceHitDist[ipos];
-    float4 specularRadianceHitDist = gSpecularRadianceHitDist[ipos];
+#if NRD_METHOD != NRD_METHOD_OCCLUSION // Normal RELAX / ReBLUR
+    float4 diffuseRadianceHitDist = float4(0.0);
+    float4 specularRadianceHitDist = float4(0.0);
+
+    if(kDiffuseValid)
+        diffuseRadianceHitDist = gDiffuseRadianceHitDist[ipos];
+
+    if(kSpecularValid)
+        specularRadianceHitDist = gSpecularRadianceHitDist[ipos];
 
     clampRadiance(diffuseRadianceHitDist.rgb, specularRadianceHitDist.rgb);
 
-#if NRD_METHOD == NRD_METHOD_RELAX_DIFFUSE_SPECULAR
+    #if NRD_METHOD == NRD_METHOD_RELAX
+        if(kDiffuseValid)
+            diffuseRadianceHitDist = RELAX_FrontEnd_PackRadianceAndHitDist(diffuseRadianceHitDist.rgb, diffuseRadianceHitDist.a,true);
 
-    diffuseRadianceHitDist = RELAX_FrontEnd_PackRadianceAndHitDist(diffuseRadianceHitDist.rgb, diffuseRadianceHitDist.a);
-    specularRadianceHitDist = RELAX_FrontEnd_PackRadianceAndHitDist(specularRadianceHitDist.rgb, specularRadianceHitDist.a);
+        if(kSpecularValid)
+            specularRadianceHitDist = RELAX_FrontEnd_PackRadianceAndHitDist(specularRadianceHitDist.rgb, specularRadianceHitDist.a,true);
 
-#else // NRD_METHOD == NRD_METHOD_REBLUR_DIFFUSE_SPECULAR
+    #else // NRD_METHOD == NRD_METHOD_REBLUR
 
+        float viewZ = gViewZ[ipos];
+        float linearRoughness = gNormalRoughness[ipos].z;
+
+        if (kDiffuseValid) {
+            diffuseRadianceHitDist.a = REBLUR_FrontEnd_GetNormHitDist(diffuseRadianceHitDist.a, viewZ, gHitDistParams, linearRoughness);
+            diffuseRadianceHitDist = REBLUR_FrontEnd_PackRadianceAndNormHitDist(diffuseRadianceHitDist.rgb, diffuseRadianceHitDist.a, true);
+        }
+
+        if (kSpecularValid) {
+            specularRadianceHitDist.a = REBLUR_FrontEnd_GetNormHitDist(specularRadianceHitDist.a, viewZ, gHitDistParams, linearRoughness);
+            specularRadianceHitDist = REBLUR_FrontEnd_PackRadianceAndNormHitDist(specularRadianceHitDist.rgb, specularRadianceHitDist.a, true);
+        }
+    #endif
+
+        if(kDiffuseValid)
+            gDiffuseRadianceHitDist[ipos] = diffuseRadianceHitDist;
+        if(kSpecularValid)
+            gSpecularRadianceHitDist[ipos] = specularRadianceHitDist;
+#else // NRD_METHOD == NRD_METHOD_OCCLUSION
     float viewZ = gViewZ[ipos];
     float linearRoughness = gNormalRoughness[ipos].z;
+    float diffuseHitDist = 0;
+    float specularHitDist = 0;
 
-    diffuseRadianceHitDist.a = REBLUR_FrontEnd_GetNormHitDist(diffuseRadianceHitDist.a, viewZ, gHitDistParams, linearRoughness);
-    REBLUR_FrontEnd_PackRadianceAndHitDist(diffuseRadianceHitDist.rgb, diffuseRadianceHitDist.a);
+    if(kDiffuseValid)
+        diffuseHitDist = gDiffuseHitDist[ipos];
+    if (kSpecularValid)
+        specularHitDist = gSpecularHitDist[ipos];
 
-    specularRadianceHitDist.a = REBLUR_FrontEnd_GetNormHitDist(specularRadianceHitDist.a, viewZ, gHitDistParams, linearRoughness);
-    REBLUR_FrontEnd_PackRadianceAndHitDist(specularRadianceHitDist.rgb, specularRadianceHitDist.a);
+    if(kDiffuseValid)
+        diffuseHitDist = REBLUR_FrontEnd_GetNormHitDist(diffuseHitDist, viewZ, gHitDistParams, linearRoughness);
+    if (kSpecularValid)
+        specularHitDist = REBLUR_FrontEnd_GetNormHitDist(specularHitDist, viewZ, gHitDistParams, linearRoughness);
 
+    if(kDiffuseValid)
+        gDiffuseHitDist[ipos] = diffuseHitDist;
+    if (kSpecularValid)
+        gSpecularHitDist[ipos] = specularHitDist;
 #endif
-
-    gDiffuseRadianceHitDist[ipos] = diffuseRadianceHitDist;
-    gSpecularRadianceHitDist[ipos] = specularRadianceHitDist;
 }

@@ -361,8 +361,13 @@ public:
      * @param[in] pContext Used render context.
      * @param[in] minMaxMips Generate a min/max mipmap pyramid. Each RGBA texel of levels >0 in the resulting MIP pyramid will cointain
      * {Avg, Min, Max, Avg} of the 4 coresponding texels from the immediatly larger MIP level.
+     * @param[in] use2Channels when  minMaxMips is enabled use {Min, Max, Avg, Avg} instead
      */
-    void generateMips(RenderContext* pContext, bool minMaxMips = false, int arraySlice = -1);
+    void generateMips(
+        RenderContext* pContext,
+        bool minMaxMips = false,
+        int arraySlice = -1, bool use2ChannelsMinMax = false
+    );
 
     /**
      * In case the texture was loaded from a file, use this to set the file path

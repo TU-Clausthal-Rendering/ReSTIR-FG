@@ -585,7 +585,7 @@ void Texture::uploadInitData(RenderContext* pRenderContext, const void* pData, b
     }
 }
 
-void Texture::generateMips(RenderContext* pContext, bool minMaxMips, int arraySlice)
+void Texture::generateMips(RenderContext* pContext, bool minMaxMips, int arraySlice, bool use2ChannelsMinMax)
 {
     if (mType != Type::Texture2D)
     {
@@ -608,14 +608,24 @@ void Texture::generateMips(RenderContext* pContext, bool minMaxMips, int arraySl
             }
             else
             {
-                const Sampler::ReductionMode redModes[] = {
-                    Sampler::ReductionMode::Standard, Sampler::ReductionMode::Min, Sampler::ReductionMode::Max,
-                    Sampler::ReductionMode::Standard};
+                std::array<Sampler::ReductionMode, 4> redModes;
+                if (use2ChannelsMinMax)
+                {
+                    redModes = {
+                        Sampler::ReductionMode::Min, Sampler::ReductionMode::Max, Sampler::ReductionMode::Standard,
+                        Sampler::ReductionMode::Standard};
+                }
+                else
+                {
+                    redModes = {
+                        Sampler::ReductionMode::Standard, Sampler::ReductionMode::Min, Sampler::ReductionMode::Max,
+                        Sampler::ReductionMode::Standard};
+                }
                 const float4 componentsTransform[] = {
                     float4(1.0f, 0.0f, 0.0f, 0.0f), float4(0.0f, 1.0f, 0.0f, 0.0f), float4(0.0f, 0.0f, 1.0f, 0.0f),
                     float4(0.0f, 0.0f, 0.0f, 1.0f)};
                 pContext->blit(
-                    srv, rtv, RenderContext::kMaxRect, RenderContext::kMaxRect, Sampler::Filter::Linear, redModes, componentsTransform
+                    srv, rtv, RenderContext::kMaxRect, RenderContext::kMaxRect, Sampler::Filter::Linear, redModes.data(), componentsTransform
                 );
             }
         }

@@ -5,8 +5,14 @@ endif()
 add_plugin(NRDPass)
 
 target_sources(NRDPass PRIVATE
-    NRDPass.cpp
-    NRDPass.h
+    NRDPassBase.cpp
+    NRDPassBase.h
+    NRDPasses/NRDPassNormal.cpp
+    NRDPasses/NRDPassNormal.h
+	NRDPasses/NRDPassOcclusion.cpp
+    NRDPasses/NRDPassOcclusion.h
+	NRDPasses/NRDPassShadow.cpp
+    NRDPasses/NRDPassShadow.h
     PackRadiance.cs.slang
 )
 

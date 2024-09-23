@@ -95,6 +95,9 @@ public:
     };
 
 private:
+    /** Parse incoming properties
+    */
+    void parseProperties(const Properties& props);
     /** Prepares the samplers etc needed for lighting. Returns true if lighting has changed
      */
     bool prepareLighting(RenderContext* pRenderContext);
@@ -248,6 +251,7 @@ private:
     float mASBuildBufferPhotonOverestimate = 1.15f;
     float2 mPhotonCollectionRadiusStart = float2(0.020f, 0.005f);
     float2 mPhotonCollectRadius = mPhotonCollectionRadiusStart;     // Radius for collection
+    bool mRadiusSetOverProperties = false;                      //True if radius was set with properties
     float mPhotonFirstHitGuard = 0.3f;                          //Phontons that traveled less than this distance are stored with a reduced probability
     float mPhotonFirstHitGuardStoreProb = 0.1f;                 //Probability for a photon to be stored if it traveled under a minimal distance
     bool mChangePhotonLightBufferSize = false;
@@ -263,7 +267,7 @@ private:
     ResamplingMode mCausticResamplingMode = ResamplingMode::SpartioTemporal;
     uint mCausticResamplingConfidenceCap = 20;
     uint mCausticResamplingSpatialSamples = 1;
-    float mCausticResamplingSpatialRadius = 4.f;
+    float mCausticResamplingSpatialRadius = 3.f;
     bool mCausticResamplingForFGDirect = true;
 
     bool mUseStochasticCollect = true;                     //Stochastic collect using reservoir sampling.
@@ -276,7 +280,7 @@ private:
     float mCullingCellRadius = 0.1f;                                //Radius used for the culling cells
 
     const uint kDynamicPhotonDispatchInitValue = 500224; // Start with 500 thousand photons
-    bool mUseDynamicePhotonDispatchCount = true;  // Dynamically change the number of photons to fit the max photon number
+    bool mUseDynamicPhotonDispatchCount = true;  // Dynamically change the number of photons to fit the max photon number
     uint mPhotonDynamicDispatchMax = 2000000;     // Max value for dynamically dispatched photons
     float mPhotonDynamicGuardPercentage = 0.08f;  // Determines how much space of the buffer is used to guard against buffer overflows
     float mPhotonDynamicChangePercentage = 0.04f; // The percentage the buffer is increased/decreased per frame
