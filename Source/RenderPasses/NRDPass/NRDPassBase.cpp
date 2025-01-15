@@ -206,6 +206,7 @@ void NRDPassBase::compile(RenderContext* pRenderContext, const CompileData& comp
     mScreenSize = RenderPassHelpers::calculateIOSize(mOutputSizeSelection, mScreenSize, compileData.defaultTexDims);
     if (mScreenSize.x == 0 || mScreenSize.y == 0)
         mScreenSize = compileData.defaultTexDims;
+    mRecreateDenoiser = true;
     mFrameIndex = 0;
 }
 
@@ -1074,14 +1075,6 @@ void NRDPassBase::dispatch(RenderContext* pRenderContext, const RenderData& rend
             case nrd::ResourceType::IN_SPEC_RADIANCE_HITDIST:
                 texture = renderData.getTexture(kInputSpecularRadianceHitDist);
                 break;
-            /*
-            case nrd::ResourceType::IN_DELTA_PRIMARY_POS:
-                texture = renderData.getTexture(kInputDeltaPrimaryPosW);
-                break;
-            case nrd::ResourceType::IN_DELTA_SECONDARY_POS:
-                texture = renderData.getTexture(kInputDeltaSecondaryPosW);
-                break;
-            */
             case nrd::ResourceType::OUT_DIFF_RADIANCE_HITDIST:
                 texture = renderData.getTexture(kOutputFilteredDiffuseRadianceHitDist);
                 break;
