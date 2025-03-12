@@ -48,6 +48,10 @@
 
 #include "core.h"
 
+#ifdef _MSC_VER
+#pragma warning(disable : 4996)  // Disable deprecated function warnings
+#endif
+
 #ifndef FMT_BEGIN_DETAIL_NAMESPACE
 #  define FMT_BEGIN_DETAIL_NAMESPACE namespace detail {
 #  define FMT_END_DETAIL_NAMESPACE }
