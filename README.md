@@ -55,7 +55,7 @@ The algorithm works as follows:
 
 
 ## Demo usage
-After downloading the demo from the release page, you can execute it using either the `ReSTIRFGDemo_[SceneName].bat` file or the `ReSTIRFGDemoNRD_[SceneName].bat` file. We provide four scenes with the Demo, two are included in the git repo in the `Models` folder (VeachAjar and Sibernik). The other two scenes need to be downloaded separately (Kitchen and Bistro) from the [Releases Page](https://github.com/TU-Clausthal-Rendering/ReSTIR-FG/releases/latest) and unziped into the `Models` folder. For more scenes, see the [Testing with more Scenes](#testing-with-more-scenes) section.
+After downloading the demo from the release page, execute `StartDemo.bat` and select the desired algorithm and scene. We provide four scenes with the Demo, two are included in the git repo in the `Models` folder (VeachAjar and Sibernik). The other two scenes need to be downloaded separately (Kitchen and Bistro) from the [Releases Page](https://github.com/TU-Clausthal-Rendering/ReSTIR-FG/releases/latest) and unziped into the `Models` folder. For more scenes, see the [Testing with more Scenes](#testing-with-more-scenes) section.
 
 To change the settings of our algorithm, navigate to the `ReSTIR_FG` group in the UI. In addition to `ReSTIR FG`, we have implemented `Final Gather` and `ReSTIR GI`, which can be switched in the UI. For more information about a setting, hover over the `(?)`.
 
