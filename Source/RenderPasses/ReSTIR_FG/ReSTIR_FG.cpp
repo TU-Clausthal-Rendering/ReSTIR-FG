@@ -92,6 +92,7 @@ namespace
     const std::string kPropsCausticResamplingMode = "CausticResamplingMode";
     const std::string kPropsEnableDynamicDispatch = "EnableDynamicDispatch";
     const std::string kPropsNumDispatchedPhotons = "NumDispatchedPhotons";
+    const std::string kPropsUseLambertianDiffuseBRDF = "UseLambertianDiffuseBRDF";
 
     //UI Dropdowns
     const Gui::DropdownList kResamplingModeList{
@@ -200,6 +201,8 @@ void ReSTIR_FG::parseProperties(const Properties& props)
             mUseDynamicPhotonDispatchCount = value;
         else if (key == kPropsNumDispatchedPhotons)
             mNumDispatchedPhotons = value;
+        else if (key == kPropsUseLambertianDiffuseBRDF)
+            mUseLambertianDiffuse = value;
         else
             logWarning("Unknown property '{}' in ReSTIR_FG properties.", key);
 
@@ -227,6 +230,7 @@ Properties ReSTIR_FG::getProperties() const
     props[kPropsCausticResamplingMode] = (uint)mCausticResamplingMode;
     props[kPropsEnableDynamicDispatch] = mUseDynamicPhotonDispatchCount;
     props[kPropsNumDispatchedPhotons] = mNumDispatchedPhotons;
+    props[kPropsUseLambertianDiffuseBRDF] = mUseLambertianDiffuse;
 
     return props;
 }
@@ -1100,7 +1104,10 @@ void ReSTIR_FG::prepareBuffers(RenderContext* pRenderContext, const RenderData& 
     {
         for (uint i = 0; i < kPhotonCounterCount; i++)
         {
-            mpPhotonCounter[i] = Buffer::create(mpDevice, sizeof(uint) * 2);
+            mpPhotonCounter[i] = Buffer::createStructured(
+                mpDevice, sizeof(uint), 2, ResourceBindFlags::ShaderResource | ResourceBindFlags::UnorderedAccess, Buffer::CpuAccess::None,
+                nullptr, false
+            );
             mpPhotonCounter[i]->setName("ReSTIR_FG::PhotonCounterGPU" + std::to_string(i));
         }
         
@@ -1109,7 +1116,8 @@ void ReSTIR_FG::prepareBuffers(RenderContext* pRenderContext, const RenderData& 
     {
         for (uint i = 0; i < kPhotonCounterCount; i++)
         {
-            mpPhotonCounterCPU[i] = Buffer::create(mpDevice, sizeof(uint) * 2, ResourceBindFlags::None, Buffer::CpuAccess::Read);
+            mpPhotonCounterCPU[i] =
+                Buffer::createStructured(mpDevice, sizeof(uint), 2, ResourceBindFlags::None, Buffer::CpuAccess::Read, nullptr, false);
             mpPhotonCounterCPU[i]->setName("ReSTIR_FG::PhotonCounterCPU" + std::to_string(i));
         }
     }
@@ -1149,7 +1157,10 @@ void ReSTIR_FG::prepareAccelerationStructure() {
     {
         std::vector<uint64_t> aabbCount = {mNumMaxPhotons[0], mNumMaxPhotons[1]};
         std::vector<uint64_t> aabbGPUAddress = {mpPhotonAABB[0]->getGpuAddress(), mpPhotonAABB[1]->getGpuAddress()};
-        mpPhotonAS = std::make_unique<CustomAccelerationStructure>(mpDevice, aabbCount, aabbGPUAddress);
+        mpPhotonAS = std::make_unique<CustomAccelerationStructure>(
+            mpDevice, aabbCount, aabbGPUAddress, CustomAccelerationStructure::BuildMode::FastBuild,
+            CustomAccelerationStructure::UpdateMode::TLASOnly
+        );
     }
 }
 

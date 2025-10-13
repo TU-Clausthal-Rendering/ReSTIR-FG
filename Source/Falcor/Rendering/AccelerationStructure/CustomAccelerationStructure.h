@@ -39,8 +39,35 @@ namespace Falcor
 class FALCOR_API CustomAccelerationStructure
 {
 public:
-    CustomAccelerationStructure(ref<Device> pDevice, const uint64_t aabbCount, const uint64_t aabbGpuAddress);
-    CustomAccelerationStructure(ref<Device> pDevice, const std::vector<uint64_t>& aabbCount, const std::vector<uint64_t>& aabbGpuAddress);
+    enum class BuildMode : uint
+    {
+        None = 0u,
+        FastBuild = 1u,
+        FastTrace = 2u,
+    };
+
+    enum class UpdateMode : uint
+    {
+        None = 0u,
+        TLASOnly = 1u,
+        BLASOnly = 2u,
+        All = 3u
+    };
+
+    CustomAccelerationStructure(
+        ref<Device> pDevice,
+        const uint64_t aabbCount,
+        const uint64_t aabbGpuAddress,
+        const BuildMode buildMode = BuildMode::None,
+        const UpdateMode updateMode = UpdateMode::None
+    );
+    CustomAccelerationStructure(
+        ref<Device> pDevice,
+        const std::vector<uint64_t>& aabbCount,
+        const std::vector<uint64_t>& aabbGpuAddress,
+        const BuildMode buildMode = BuildMode::None,
+        const UpdateMode updateMode = UpdateMode::None
+    );
 
     ~CustomAccelerationStructure();
 
@@ -48,7 +75,19 @@ public:
     void update(RenderContext* pRenderContext, const uint64_t aabbCount);
     void update(RenderContext* pRenderContext, const std::vector<uint64_t>& aabbCount);
 
-    void bindTlas(ShaderVar& rootVar, std::string shaderName = "gCustomAccel");
+    void bindTlas(const ShaderVar& rootVar, std::string shaderName = "gCustomAccel");
+
+    void setMinBLASUpdateCount(const size_t count) { mMinUpdateAABBCount = count; }
+
+    /** Clears the AABBs. Clears the min.x value to NaN by default (reduces traversal times)
+     */
+    void clearAABBBuffers(RenderContext* pRenderContext, const ref<Buffer> pAABBBuffer, bool clearToNaN = true, ref<Buffer> pCounterBuffer = nullptr);
+    void clearAABBBuffers(RenderContext* pRenderContext, const std::vector<ref<Buffer>>& pAABBBuffers, bool clearToNaN = true, ref<Buffer> pCounterBuffer = nullptr);
+
+    /* Inserts a barrier and transitions buffer to the correct state
+    */
+    void AABBBufferBarrier(RenderContext* pRenderContext, const ref<Buffer> pAABBBuffer);
+    void AABBBufferBarrier(RenderContext* pRenderContext, const std::vector<ref<Buffer>>& pAABBBuffers);
 
 private:
     /*  * Creates the acceleration structure.
@@ -80,6 +119,8 @@ private:
     /** Build the BLAS
      */
     void buildBottomLevelAS(RenderContext* pRenderContext, const std::vector<uint64_t>& aabbCount, bool updateAABBCount);
+ 
+    
 
     // Acceleration Structure helpers Structs
     struct BLASData
@@ -94,6 +135,8 @@ private:
 
     struct TLASData
     {
+        RtAccelerationStructureBuildInputs buildInputs;
+
         ref<Buffer> pTlas;
         ref<RtAccelerationStructure> pTlasObject; //<API Object
         ref<Buffer> pInstanceDescs;               ///< Buffer holding instance descs for the TLAS.
@@ -101,10 +144,12 @@ private:
 
     ref<Device> mpDevice; // Pointer to the Device
 
-    bool mFastBuild = false; // TODO add functions to set these parameters
-    bool mUpdate = false;
+    BuildMode mBuildMode = BuildMode::None;
+    UpdateMode mUpdateMode = UpdateMode::None;
+    bool mAccelerationStructureWasBuild = false;    //To check if update can be performed
     size_t mNumberBlas = 0;
     size_t mBlasScratchMaxSize = 0;
+    size_t mMinUpdateAABBCount = 0;                 //Custom update count. AABB is only update if count is bigger than the min update count
 
     std::vector<BLASData> mBlasData;
     std::vector<ref<Buffer>> mBlas;
@@ -114,6 +159,9 @@ private:
     RtAccelerationStructurePrebuildInfo mTlasPrebuildInfo = {};
     ref<Buffer> mTlasScratch;
     TLASData mTlas;
+
+    //Custom Clear Pass for AABBs (need NaN in minPoint.x)
+    ref<ComputePass> mpClearAABBsPass;
 };
 
 }

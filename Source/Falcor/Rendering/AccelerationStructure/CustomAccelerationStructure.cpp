@@ -35,13 +35,27 @@
 
 namespace Falcor
 {
-    CustomAccelerationStructure::CustomAccelerationStructure(ref<Device> pDevice, const uint64_t aabbCount, const uint64_t aabbGpuAddress)
+    namespace
+    {
+    std::string kAABBClearShaderFile = "Rendering/AccelerationStructure/ClearAABBs.cs.slang";
+    }
+
+    CustomAccelerationStructure::CustomAccelerationStructure(
+        ref<Device> pDevice,
+        const uint64_t aabbCount,
+        const uint64_t aabbGpuAddress,
+        const BuildMode buildMode,
+        const UpdateMode updateMode
+    )
     {
         mpDevice = pDevice;
         if (!mpDevice->isFeatureSupported(Device::SupportedFeatures::Raytracing))
         {
             throw std::exception("Raytracing is not supported by the current device");
         }
+
+        mBuildMode = buildMode;
+        mUpdateMode = updateMode;
 
         const std::vector count = {aabbCount};
         const std::vector gpuAddress = {aabbGpuAddress};
@@ -52,7 +66,9 @@ namespace Falcor
     CustomAccelerationStructure::CustomAccelerationStructure(
         ref<Device> pDevice,
         const std::vector<uint64_t>& aabbCount,
-        const std::vector<uint64_t>& aabbGpuAddress
+        const std::vector<uint64_t>& aabbGpuAddress,
+        const BuildMode buildMode,
+        const UpdateMode updateMode
     )
     {
         mpDevice = pDevice;
@@ -60,6 +76,9 @@ namespace Falcor
         {
             throw std::exception("Raytracing is not supported by the current device");
         }
+
+        mBuildMode = buildMode;
+        mUpdateMode = updateMode;
 
         createAccelerationStructure(aabbCount, aabbGpuAddress);
     }
@@ -86,7 +105,7 @@ namespace Falcor
         buildAccelerationStructure(pRenderContext, aabbCount, true);
     }
 
-    void CustomAccelerationStructure::bindTlas(ShaderVar& rootVar, std::string shaderName)
+    void CustomAccelerationStructure::bindTlas(const ShaderVar& rootVar, std::string shaderName)
     {
         rootVar[shaderName].setAccelerationStructure(mTlas.pTlasObject);
     }
@@ -104,6 +123,7 @@ namespace Falcor
 
         createBottomLevelAS(aabbCount, aabbGpuAddress);
         createTopLevelAS();
+        mAccelerationStructureWasBuild = false;
     }
 
     void CustomAccelerationStructure::clearData()
@@ -155,13 +175,17 @@ namespace Falcor
             inputs.kind = RtAccelerationStructureKind::BottomLevel;
             inputs.descCount = 1;
             inputs.geometryDescs = &blas.geomDescs;
+            inputs.flags = RtAccelerationStructureBuildFlags::None;
 
             // Build option flags
-            // TODO Check for performance if neither is activated
-            inputs.flags = mFastBuild ? RtAccelerationStructureBuildFlags::PreferFastBuild : RtAccelerationStructureBuildFlags::PreferFastTrace;
-            if (mUpdate)
-                inputs.flags |= RtAccelerationStructureBuildFlags::AllowUpdate;
+            if (mBuildMode == BuildMode::FastBuild)
+                inputs.flags |= RtAccelerationStructureBuildFlags::PreferFastBuild;
+            else if (mBuildMode == BuildMode::FastTrace)
+                inputs.flags |= RtAccelerationStructureBuildFlags::PreferFastTrace;
 
+            if (mUpdateMode == UpdateMode::BLASOnly || (mUpdateMode == UpdateMode::All))
+                inputs.flags |= RtAccelerationStructureBuildFlags::AllowUpdate;
+                
             // Get prebuild Info
             blas.prebuildInfo = RtAccelerationStructure::getPrebuildInfo(mpDevice.get(), inputs);
 
@@ -181,6 +205,7 @@ namespace Falcor
 
         for (uint i = 0; i < mNumberBlas; i++)
         {
+            mBlasData[i].blasByteSize = align_to((uint64_t)kAccelerationStructureByteAlignment, mBlasData[i].blasByteSize);
             mBlas[i] = Buffer::create(mpDevice, mBlasData[i].blasByteSize, Buffer::BindFlags::AccelerationStructure);
             mBlas[i]->setName("CustomAS::BlasBuffer" + std::to_string(i));
 
@@ -212,10 +237,19 @@ namespace Falcor
             mInstanceDesc.push_back(desc);
         }
 
-        RtAccelerationStructureBuildInputs inputs = {};
+        auto& inputs = mTlas.buildInputs;
+        inputs = {};
         inputs.kind = RtAccelerationStructureKind::TopLevel;
         inputs.descCount = (uint32_t)mNumberBlas;
-        inputs.flags = RtAccelerationStructureBuildFlags::None; // TODO Check performance for Fast Trace or Fast Update
+        inputs.flags = RtAccelerationStructureBuildFlags::None;
+
+        if (mBuildMode == BuildMode::FastBuild)
+            inputs.flags |= RtAccelerationStructureBuildFlags::PreferFastBuild;
+        else if (mBuildMode == BuildMode::FastTrace)
+            inputs.flags |= RtAccelerationStructureBuildFlags::PreferFastTrace;
+
+        if (mUpdateMode == UpdateMode::TLASOnly || (mUpdateMode == UpdateMode::All))
+            inputs.flags |= RtAccelerationStructureBuildFlags::AllowUpdate;
 
         // Prebuild
         mTlasPrebuildInfo = RtAccelerationStructure::getPrebuildInfo(mpDevice.get(), inputs);
@@ -253,6 +287,7 @@ namespace Falcor
 
         buildBottomLevelAS(pRenderContext, aabbCount, updateAABBCount);
         buildTopLevelAS(pRenderContext);
+        mAccelerationStructureWasBuild = true;
     }
 
     void CustomAccelerationStructure::buildBottomLevelAS(
@@ -265,6 +300,9 @@ namespace Falcor
 
         for (size_t i = 0; i < mNumberBlas; i++)
         {
+            //Skip
+            if (updateAABBCount && aabbCount[i] <= mMinUpdateAABBCount)
+                continue;
             auto& blas = mBlasData[i];
 
             // barriers for the scratch and blas buffer
@@ -279,6 +317,13 @@ namespace Falcor
             asDesc.inputs = blas.buildInputs;
             asDesc.scratchData = mBlasScratch->getGpuAddress();
             asDesc.dest = mBlasObjects[i].get();
+            
+
+            if (mAccelerationStructureWasBuild && (mUpdateMode == UpdateMode::BLASOnly || (mUpdateMode == UpdateMode::All)))
+            {
+                asDesc.source = asDesc.dest;
+                asDesc.inputs.flags |= RtAccelerationStructureBuildFlags::PerformUpdate;
+            }
 
             // Build the acceleration structure
             pRenderContext->buildAccelerationStructure(asDesc, 0, nullptr);
@@ -292,21 +337,19 @@ namespace Falcor
     {
         FALCOR_PROFILE(pRenderContext, "buildCustomTlas");
 
-        RtAccelerationStructureBuildInputs inputs = {};
-        inputs.kind = RtAccelerationStructureKind::TopLevel;
-        inputs.descCount = (uint32_t)mInstanceDesc.size();
-        // Update Flag could be set for TLAS. This made no real time difference in our test so it is left out. Updating could reduce the memory
-        // of the TLAS scratch buffer a bit
-        inputs.flags = mFastBuild ? RtAccelerationStructureBuildFlags::PreferFastBuild : RtAccelerationStructureBuildFlags::PreferFastTrace;
-        if (mUpdate)
-            inputs.flags |= RtAccelerationStructureBuildFlags::AllowUpdate;
-
         RtAccelerationStructure::BuildDesc asDesc = {};
-        asDesc.inputs = inputs;
+        asDesc.inputs = mTlas.buildInputs;
         asDesc.inputs.instanceDescs = mTlas.pInstanceDescs->getGpuAddress();
         asDesc.scratchData = mTlasScratch->getGpuAddress();
         asDesc.dest = mTlas.pTlasObject.get();
+        
 
+        if (mAccelerationStructureWasBuild && (mUpdateMode == UpdateMode::TLASOnly || (mUpdateMode == UpdateMode::All)))
+        {
+            asDesc.source = asDesc.dest;
+            asDesc.inputs.flags |= RtAccelerationStructureBuildFlags::PerformUpdate;
+        }
+            
         // Create TLAS
         if (mTlas.pInstanceDescs)
         {
@@ -320,4 +363,54 @@ namespace Falcor
         pRenderContext->uavBarrier(mTlas.pTlas.get());
     }
 
-}
+    void CustomAccelerationStructure::clearAABBBuffers(RenderContext* pRenderContext, const ref<Buffer> pAABBBuffer, bool clearToNaN, ref<Buffer> pCounterBuffer)
+    {
+        std::vector<ref<Buffer>> pAABBs = {pAABBBuffer};
+        clearAABBBuffers(pRenderContext, pAABBs, clearToNaN, pCounterBuffer);
+    }
+
+    void CustomAccelerationStructure::clearAABBBuffers(RenderContext* pRenderContext, const std::vector<ref<Buffer>>& pAABBBuffers, bool clearToNaN, ref<Buffer> pCounterBuffer) {
+        FALCOR_PROFILE(pRenderContext, "ClearAccelAABBBuffers");
+
+        if (pAABBBuffers.empty())
+            return;
+
+        //Create compute pass if invalid
+        if (!mpClearAABBsPass)
+        {
+            Program::Desc desc;
+            desc.addShaderLibrary(kAABBClearShaderFile).csEntry("main").setShaderModel("6_6");
+
+            DefineList defines;
+            defines.add("USE_COUNTER_TO_CLEAR", pCounterBuffer ? "1" : "0");
+
+            mpClearAABBsPass = ComputePass::create(mpDevice, desc, defines, true);
+        }
+
+        mpClearAABBsPass->getProgram()->addDefine("USE_COUNTER_TO_CLEAR", pCounterBuffer ? "1" : "0");
+
+        auto var = mpClearAABBsPass->getRootVar();
+
+        for (uint i=0; i< pAABBBuffers.size(); i++)
+        {
+            auto& pAABB = pAABBBuffers[i];
+            uint3 dispatchSize = uint3(1);
+            if (pAABB->isStructured() || pAABB->isTyped())
+                dispatchSize.x = (pAABB->getElementCount());
+            else
+                dispatchSize.x = pAABB->getElementCount() / sizeof(AABB);
+
+            var["CB"]["gMax"] = dispatchSize.x;
+            var["CB"]["gOffset"] = 0;
+            var["CB"]["gClearToNaN"] = clearToNaN;
+            var["CB"]["gCounterIdx"] = i;
+
+            var["gCounter"] = pCounterBuffer; //Can be nullptr
+            var["gAABB"] = pAABB;
+
+            mpClearAABBsPass->execute(pRenderContext, dispatchSize);
+            pRenderContext->resourceBarrier(pAABB.get(), Resource::State::ShaderResource);
+        }
+    }
+
+} //namespace Falcor

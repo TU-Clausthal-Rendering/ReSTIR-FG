@@ -9,7 +9,9 @@ This repository contains the source code and an interactive demo for [the follow
 > René Kern, Felix Brüll, Thorsten Grosch <br>
 > TU Clausthal
 
-This prototype implements ReSTIR FG, an efficient real-time global illumination algorithm that combines photon final gaterhing with reservoir resampling (ReSTIR). Additionally, our ReSTIR FG is able to display caustics in real-time. For direct light, [RTXDI](https://github.com/NVIDIAGameWorks/RTXDI) is used. This prototype also contains a denoised prototype using [DLSS](https://github.com/NVIDIA/DLSS) and [NRD](https://github.com/NVIDIAGameWorks/RayTracingDenoiser)
+This prototype implements ReSTIR FG, an efficient real-time global illumination algorithm that combines photon final gaterhing with reservoir resampling (ReSTIR). Additionally, our ReSTIR FG is able to display caustics in real-time. For direct light, [RTXDI](https://github.com/NVIDIAGameWorks/RTXDI) is used. This prototype also contains a denoised prototype using [DLSS](https://github.com/NVIDIA/DLSS) and [NRD](https://github.com/NVIDIAGameWorks/RayTracingDenoiser).
+
+This repository also includes a simplified version of ReSTIR FG, called [ReSTIR FG Lite](#restir-fg-lite). This variant is designed to make it easier to learn the core algorithm and follows the notation used in the ["A gentle Introduction to ReSTIR" course](https://intro-to-restir.cwyman.org/). For more details, see [here](#restir-fg-lite).
 
 This project was implemented using NVIDIA's Falcor rendering framework. See [README_Falcor.md](README_Falcor.md) for the readme provided with Falcor.
 
@@ -21,10 +23,36 @@ Teaser:
 
 ## Contents:
 
+* [ReSTIR FG Lite](#restir-fg-lite)
 * [Demo usage](#demo-usage)
 * [Testing with more Scenes](#testing-with-more-scenes)
 * [Falcor Prerequisites](#falcor-prerequisites)
 * [Building Falcor](#building-falcor)
+
+## ReSTIR FG Lite
+ReSTIR FG Lite is a stripped-down version of our base variant, designed to highlight the core algorithm in a simpler form. The implementation follows the notation used in the ["A gentle Introduction to ReSTIR" course](https://intro-to-restir.cwyman.org/).
+
+The algorithm works as follows:
+1. **VBuffer Pass** - Acquire the first surface hit.
+2. **Trace Photons** [(Shader)](Source/RenderPasses/ReSTIR_FG_Lite/TracePhotons.rt.slang)
+    - Photons are only stored on diffuse surfaces. Photons are stored only on diffuse surfaces (classification is based on a roughness threshold, default = 0.25).
+    - Photons are classified as *Global* (last hit diffuse) or *Caustic* (last hit specular).
+    - Global photons are stochastically rejected with a fixed probability to reduce acceleration structure build time and relatively increase caustic photon density.
+3. **Build the Photon Acceleration Structure**
+    - Photons are stored as Axis-Aligned Bounding Boxes (AABBs) with their collection radius as extent.
+4. **Generate Initial Final Gather and Caustic Reservoirs** [(Shader)](Source/RenderPasses/ReSTIR_FG_Lite/GenerateInitialSamples.rt.slang)
+    - Reservoirs are initialized at the first diffuse surface. (For Final Gather, an additional ray is traced)
+    - If the VBuffer surface is not diffuse, a ray is traced until one is found. (Or maximal ray depth is reached)
+    - If the first surface is non-diffuse, caustic reservoirs also include Global photons with path length 0 (direct illumination), since RTXDI cannot properly handle these samples.
+    - The RTXDI surface is also set in this step.
+5. **Direct Light Sampling and Resampling** - performed with [RTXDI](https://github.com/NVIDIAGameWorks/RTXDI).
+6. **Resample Final Gather Reservoirs** with spatiotemporal samples [(Shader)](Source/RenderPasses/ReSTIR_FG_Lite/ResampleReservoirFG.cs.slang).
+7. **Resample Caustic Reservoirs** with (spatio)temporal samples [(Shader)](Source/RenderPasses/ReSTIR_FG_Lite/ResampleReservoirCaustic.cs.slang).
+8. **Evaluate All Reservoirs** [(Shader)](Source/RenderPasses/ReSTIR_FG_Lite/EvaluateReservoirs.cs.slang).
+
+(Shared structs and utility functions are located [here](Source/RenderPasses/ReSTIR_FG_Lite/StructsAndHelpers.slang)).
+
+
 
 ## Demo usage
 After downloading the demo from the release page, you can execute it using either the `ReSTIRFGDemo_[SceneName].bat` file or the `ReSTIRFGDemoNRD_[SceneName].bat` file. We provide four scenes with the Demo, two are included in the git repo in the `Models` folder (VeachAjar and Sibernik). The other two scenes need to be downloaded separately (Kitchen and Bistro) from the [Releases Page](https://github.com/TU-Clausthal-Rendering/ReSTIR-FG/releases/latest) and unziped into the `Models` folder. For more scenes, see the [Testing with more Scenes](#testing-with-more-scenes) section.

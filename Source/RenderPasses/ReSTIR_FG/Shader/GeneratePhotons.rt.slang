@@ -42,7 +42,7 @@ cbuffer Light{
 
 RWStructuredBuffer<AABB> gPhotonAABB[2];
 RWStructuredBuffer<PhotonDataPacked> gPackedPhotonData[2];
-RWBuffer<uint> gPhotonCounter;
+RWStructuredBuffer<uint> gPhotonCounter;
 Texture2D<uint>gPhotonCullingMask;
 
 
