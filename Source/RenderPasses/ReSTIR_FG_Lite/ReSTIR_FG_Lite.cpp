@@ -259,6 +259,9 @@ void ReSTIR_FG_Lite::execute(RenderContext* pRenderContext, const RenderData& re
 
     mpRTXDI->beginFrame(pRenderContext, mScreenRes);
 
+    //Clear Photon Counter before tracing the Photons for this frame
+    pRenderContext->clearUAV(mpPhotonCounter->getUAV().get(), uint4(0));
+
     //Trace Photons. Up to two passes may be executed, depending on the light types in the scene
     //(one for emissive triangles and one for analytic point/spot lights)
     tracePhotonsPass(pRenderContext, renderData, !mMixedLights && mHasAnalyticLights, !mMixedLights && mPhotonAnalyticRatio > 0);
@@ -431,9 +434,6 @@ void ReSTIR_FG_Lite::preparePhotonAccelerationStructure()
 void ReSTIR_FG_Lite::tracePhotonsPass(RenderContext* pRenderContext, const RenderData& renderData,  bool analyticOnly,  bool buildAS)
 {
     FALCOR_PROFILE(pRenderContext, "TracePhotons");
-
-    //Clear Photon Counter
-    pRenderContext->clearUAV(mpPhotonCounter->getUAV().get(), uint4(0));
 
     // Init Shader
     if (!mTracePhotonPass.pProgram)

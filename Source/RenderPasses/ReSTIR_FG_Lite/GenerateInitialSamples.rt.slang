@@ -48,11 +48,7 @@ struct RayPayload
 bool hitSphere(const float3 center, const float radius, const float3 p)
 {
     float3 radiusTest = p - center;
-    radiusTest = radiusTest * radiusTest;
-    float radiusTestF = radiusTest.x + radiusTest.y + radiusTest.z;
-    if (radiusTestF < radius * radius)
-        return true;
-    return false;
+    return dot(radiusTest, radiusTest) < radius * radius;
 }
 
 /*  Collects all photons in a radius and estimates radiance.
