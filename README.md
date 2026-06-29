@@ -9,6 +9,8 @@ This repository contains the source code and an interactive demo for [the follow
 > René Kern, Felix Brüll, Thorsten Grosch <br>
 > TU Clausthal
 
+For the successor to this work, see the [Guided ReSTIR FG+](https://github.com/TU-Clausthal-Rendering/Guided-ReSTIR-FG-Plus) project page.
+
 This prototype implements ReSTIR FG, an efficient real-time global illumination algorithm that combines photon final gaterhing with reservoir resampling (ReSTIR). Additionally, our ReSTIR FG is able to display caustics in real-time. For direct light, [RTXDI](https://github.com/NVIDIAGameWorks/RTXDI) is used. This prototype also contains a denoised prototype using [DLSS](https://github.com/NVIDIA/DLSS) and [NRD](https://github.com/NVIDIAGameWorks/RayTracingDenoiser).
 
 This repository also includes a simplified version of ReSTIR FG, called [ReSTIR FG Lite](#restir-fg-lite). This variant is designed to make it easier to learn the core algorithm and follows the notation used in the ["A gentle Introduction to ReSTIR" course](https://intro-to-restir.cwyman.org/). For more details, see [here](#restir-fg-lite).
