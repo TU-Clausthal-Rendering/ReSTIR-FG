@@ -30,6 +30,7 @@ Teaser:
 * [Testing with more Scenes](#testing-with-more-scenes)
 * [Falcor Prerequisites](#falcor-prerequisites)
 * [Building Falcor](#building-falcor)
+* [Contact](#contact)
 
 ## ReSTIR FG Lite
 ReSTIR FG Lite is a stripped-down version of our base variant, designed to highlight the core algorithm in a simpler form. The implementation follows the notation used in the ["A gentle Introduction to ReSTIR" course](https://intro-to-restir.cwyman.org/).
@@ -110,3 +111,9 @@ Falcor uses the [CMake](https://cmake.org) build system. Additional information 
 
 ### Visual Studio
 If you are working with Visual Studio 2022, you can setup a native Visual Studio solution by running `setup_vs2022.bat` after cloning this repository. The solution files are written to `build/windows-vs2022` and the binary output is located in `build/windows-vs2022/bin`.
+
+## Contact
+
+If you have any questions about the paper, the implementation, or encounter any issues while using this repository, please feel free to get in touch.
+
+Email: rene.kern@tu-clausthal.de
